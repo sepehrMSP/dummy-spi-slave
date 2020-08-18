@@ -1,0 +1,1 @@
+dummy spi slave
