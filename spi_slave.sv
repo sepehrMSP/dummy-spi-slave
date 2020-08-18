@@ -96,7 +96,7 @@ module spi_slave //reciever
         else begin
             serial_in_data = data_in;
             read_en = 0;
-            MISO = tx_byte_spi[tx_byte_spi_counter];
+            MISO = tx_byte_spi[7];
             tx_byte_spi_counter = tx_byte_spi_counter + 1;
             tx_byte_spi = (1 << tx_byte_spi);
             if (tx_byte_spi_counter == 8)begin
@@ -105,9 +105,7 @@ module spi_slave //reciever
                 tx_byte_spi_counter = tx_byte_spi_counter + 1;
                 if (serial_in_data_counter == 8)begin
                     serial_in_data_counter= 0;
-                    if (is_empty == 0)begin
-                        read_en = 1;
-                    end
+                    read_en = 1;
                 end
             end
         end
