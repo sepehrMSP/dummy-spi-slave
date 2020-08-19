@@ -1,13 +1,13 @@
 //probable bugs 
 // - position of write_en
-`define SERIAL_OUT_WIDTH 64
+`define SERIAL_OUT_WIDTH 24
  
 module spi_slave //reciever
 #(parameter SPI_MODE = 0)
 (
     MISO,
     MOSI,
-    SLCK,
+    SCLK,
     CSn,
 
     data_out,
@@ -22,7 +22,7 @@ module spi_slave //reciever
 );
     output MISO;
     input MOSI;
-    input SLCK;
+    input SCLK;
     input CSn;
     //write to async fifo
     output [`SERIAL_OUT_WIDTH-1:0] data_out;
@@ -42,7 +42,7 @@ module spi_slave //reciever
     wire CS;
 
     reg [7:0] rx_byte_spi = 0, tx_byte_spi = 0;
-    reg [`SERIAL_OUT_WIDTH-1:0] serial_out_data = 0, serial_in_data = 0;
+    reg [`SERIAL_OUT_WIDTH-1:0] serial_out_data = 0;
     reg write_en = 0;
     reg MISO;
     reg read_en;
@@ -51,16 +51,16 @@ module spi_slave //reciever
     int serial_out_data_counter = 0, serial_in_data_counter = 0;
 
     ///////////////////////////////////////////////////////////////
-    assign CS = ~CS;
+    assign CS = ~CSn;
 
-    assign write_clk = SLCK;
-    assign data_out = serial_in_data;
-    assign write_en = (serial_in_data_counter == 64);
+    assign write_clk = SCLK;
+    assign read_clk = SCLK;
+    assign data_out = serial_out_data;
 
 
     assign CPHA = (SPI_MODE == 1) | (SPI_MODE == 3);
     assign CPOL = (SPI_MODE == 2) | (SPI_MODE == 3);
-    assign polaritated_clock = CPOL ? ~SLCK : SLCK;
+    assign polaritated_clock = CPOL ? ~SCLK : SCLK;
     //in our code we assume that reading is always at posedge of clock and writing
     //is always at negedge of clock. so for simplicity we use a read_clock which is 
     //clock phase inside itself
@@ -72,15 +72,16 @@ module spi_slave //reciever
         if(CSn)begin
             rx_byte_spi = 0;
             rx_byte_spi_counter = 0;
+            write_en = 0;
         end
         else begin
             write_en = 0;
-            rx_byte_spi = {rx_byte[6:0], MOSI};
+            rx_byte_spi = {rx_byte_spi[6:0], MOSI};
             serial_out_data = {serial_out_data[`SERIAL_OUT_WIDTH-2:0], MOSI};
             serial_out_data_counter = serial_out_data_counter + 1;
-            if (serial_in_data_counter == `SERIAL_OUT_WIDTH)begin
+            if (serial_out_data_counter == `SERIAL_OUT_WIDTH)begin
                 write_en = 1;
-                serial_in_data_counter = 0;
+                serial_out_data_counter = 0;
             end
         end
     end
@@ -88,22 +89,19 @@ module spi_slave //reciever
 
     //send slave
     always@(negedge read_clock, negedge CS)begin
-        if(CSn)begin
-           tx_byte_spi = 0;
-           tx_byte_spi_counter = 0;
+        if(CSn == 1)begin
            read_en = 0;
         end 
         else begin
-            serial_in_data = data_in;
             read_en = 0;
             MISO = tx_byte_spi[7];
+            tx_byte_spi = tx_byte_spi << 1;
             tx_byte_spi_counter = tx_byte_spi_counter + 1;
-            tx_byte_spi = (1 << tx_byte_spi);
             if (tx_byte_spi_counter == 8)begin
                 tx_byte_spi_counter = 0;
-                tx_byte_spi = serial_in_data[serial_in_data_counter*8+7:serial_in_data_counter*8];
-                tx_byte_spi_counter = tx_byte_spi_counter + 1;
-                if (serial_in_data_counter == 8)begin
+                tx_byte_spi = data_in[serial_in_data_counter*8 +: 8];
+                serial_in_data_counter = serial_in_data_counter + 1;
+                if (serial_in_data_counter == (`SERIAL_OUT_WIDTH/8))begin
                     serial_in_data_counter= 0;
                     read_en = 1;
                 end
@@ -113,7 +111,7 @@ module spi_slave //reciever
 
 endmodule
 
-
+/*
 `timescale 1 ns / 1 ps
 
 module mySPI_Tx_AXIS_v1_0_S00_AXIS #
@@ -233,3 +231,4 @@ always @(posedge S_AXIS_ACLK) begin
 end
 
 endmodule
+*/
